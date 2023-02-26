@@ -16,6 +16,12 @@ folders = ['0522c0001']
            # '0522c0014', '0522c0017', '0522c0057',
            # '0522c0070', '0522c0081']
 
+           
+# dice similarity function
+def myDice(A, B):
+    out = (2 * np.sum(A * B)) / (np.sum(A) + np.sum(B))
+    return out
+
 for folder_name in tqdm(folders):
     # load a ground truth msk
     gt_msk = '/home-local/adi/scripts/EECE_395/' + \
@@ -91,12 +97,28 @@ for folder_name in tqdm(folders):
 
     # mlab.show()
     # # end of displaying the masks
+    binary_image_gt = np.zeros_like(img_gt_msk)
+    binary_image_gt[img_gt_msk > 0.5] = 1
 
-    # dice similarity between gt and each of three raters
-    intersection = np.array(gt_vol) * np.array(t1_vol)
-    union = np.array(gt_vol) + np.array(t1_vol)
-    dice_coef = 2 * intersection / union
-    print('Dice similarity coefficient between GT and T1:', dice_coef)
+    binary_image_t1 = np.zeros_like(img_t1_msk)
+    binary_image_t1[img_t1_msk > 0.5] = 1
+
+    binary_image_t2 = np.zeros_like(img_t2_msk)
+    binary_image_t2[img_t2_msk > 0.5] = 1
+
+    binary_image_t3 = np.zeros_like(img_t3_msk)
+    binary_image_t3[img_t3_msk > 0.5] = 1
+
+    # dice similarity coefficient for t1 image and the ground truth
+    dice_sim_gt_t1 = myDice(binary_image_gt, binary_image_t1)
+    # dice similarity coefficient for t1 image and the ground truth
+    dice_sim_gt_t2 = myDice(binary_image_gt, binary_image_t2)
+    # dice similarity coefficient for t1 image and the ground truth
+    dice_sim_gt_t3 = myDice(binary_image_gt, binary_image_t3)
+
+    print("Dice Similarity gt and t1 =", dice_sim_gt_t1)
+    print("Dice Similarity gt and t2 =", dice_sim_gt_t2)
+    print("Dice Similarity gt and t3 =", dice_sim_gt_t3)
 
 
 while (1):
