@@ -16,66 +16,111 @@ folders = ['0522c0001']
            # '0522c0014', '0522c0017', '0522c0057',
            # '0522c0070', '0522c0081']
 
-from scipy.spatial.distance import cdist
-
-
-def majority_vote_segmentation(segments):
-    """
-    Compute the majority vote segmentation from a list of binary segmentations.
-    """
-    num_segments, depth, height, width = segments.shape
-    # Compute the sum of votes along the first axis
-    votes = np.sum(segments, axis=0)
-    # Compute the threshold for majority vote
-    threshold = num_segments // 2 + 1
-    # Apply the threshold to obtain the output segmentation
-    result = votes >= threshold
-    return result
-
-
-
-def directed_hausdorff_distance(A, B):
-    """
-    Compute the directed Hausdorff distance from set A to set B
-    """
-    D = cdist(A, B)
-    return np.max(np.min(D, axis=1))
-
-def hausdorff_distance(A, B):
-    """
-    Compute the Hausdorff distance between set A and set B
-    """
-    return max(directed_hausdorff_distance(A, B), directed_hausdorff_distance(B, A))
-
-
-
-
-
-
-def msd(gt_vertices, seg_vertices):
-    # Compute distances from GT vertices to segmentation surface
-    gt_to_seg = cdist(gt_vertices, seg_vertices)
-    closest_seg_distances = np.min(gt_to_seg, axis=1)
-
-    # Compute distances from segmentation vertices to GT surface
-    seg_to_gt = cdist(seg_vertices, gt_vertices)
-    closest_gt_distances = np.min(seg_to_gt, axis=1)
-
-
-    # Compute MSD
-    numerator = (np.sum(closest_gt_distances) / len(closest_gt_distances)) + (np.sum(closest_seg_distances) / len(closest_seg_distances))
-    msd = numerator / 2
-
-    return msd
-
 # dice similarity function
 def myDice(A, B):
     out = (2 * np.sum(A * B)) / (np.sum(A) + np.sum(B))
     return out
 
+
+def surface_distance(surfaces_base, surfaces_reference):
+    surfaces_base[0].faces = np.array(surfaces_base[0].faces, dtype='int')
+    surfaces_reference[0].faces = np.array(surfaces_base[0].faces, dtype='int')
+    # base to reference distance
+    min_value_pt = np.min(surfaces_base[0].faces)
+    max_value_pt = np.max(surfaces_base[0].faces)
+    p = surfaces_base[min_value_pt].verts[0, :]
+    dist_vector_base_reference = []
+    for p_index in range(0, max_value_pt):
+        p = surfaces_base[min_value_pt].verts[p_index, :]
+        # below loop computes distance vector of one point distance vector base to reference
+        temp = 1000000
+        for face in surfaces_reference[0].faces:
+            q1 = surfaces_reference[0].verts[face[0], :]
+            q2 = surfaces_reference[0].verts[face[1], :]
+            q3 = surfaces_reference[0].verts[face[2], :]
+            v1 = q2 - q1
+            v2 = q3 - q1
+            V = np.concatenate((v1[:, np.newaxis], v2[:, np.newaxis]), axis=1)
+            pinv = np.linalg.pinv(V)
+            ab = pinv @ ((p - q1)[:, np.newaxis])
+
+            if ab[0] >= 0 and ab[1] >= 0 and np.sum(ab) <= 1:
+                w = V @ ab + q1[:, np.newaxis]
+                pt_dist = np.linalg.norm(w - p[:, np.newaxis])
+
+            else:
+                v3 = q3 - q2
+                c = np.sum(v1 * (p - q1)) / np.sum(v1 * v1)
+                d = np.sum(v2 * (p - q1)) / np.sum(v2 * v2)
+                e = np.sum(v3 * (p - q2)) / np.sum(v3 * v3)
+                if c < 0: c = 0
+                if c > 1: c = 1
+                if d < 0: d = 0
+                if d > 1: d = 1
+                if e < 0: e = 0
+                if e > 1: e = 1
+                d1 = np.sqrt(np.sum((q1 + c * v1 - p) ** 2))
+                d2 = np.sqrt(np.sum((q1 + d * v2 - p) ** 2))
+                d3 = np.sqrt(np.sum((q2 + e * v3 - p) ** 2))
+                pt_dist = np.min([d1, d2, d3])
+
+            if pt_dist < temp:
+                temp = pt_dist
+        dist_vector_base_reference.append(temp)
+
+
+    # reference to base distance
+    min_value_pt = np.min(surfaces_reference[0].faces)
+    max_value_pt = np.max(surfaces_reference[0].faces)
+    p = surfaces_reference[min_value_pt].verts[0, :]
+    dist_vector_reference_base = []
+    for p_index in range(0, max_value_pt):
+        p = surfaces_reference[min_value_pt].verts[p_index, :]
+        # below loop computes distance vector of one point distance vector base to reference
+        temp = 1000000
+        for face in surfaces_base[0].faces:
+            q1 = surfaces_base[0].verts[face[0], :]
+            q2 = surfaces_base[0].verts[face[1], :]
+            q3 = surfaces_base[0].verts[face[2], :]
+            v1 = q2 - q1
+            v2 = q3 - q1
+            V = np.concatenate((v1[:, np.newaxis], v2[:, np.newaxis]), axis=1)
+            pinv = np.linalg.pinv(V)
+            ab = pinv @ ((p - q1)[:, np.newaxis])
+
+            if ab[0] >= 0 and ab[1] >= 0 and np.sum(ab) <= 1:
+                w = V @ ab + q1[:, np.newaxis]
+                pt_dist = np.linalg.norm(w - p[:, np.newaxis])
+
+            else:
+                v3 = q3 - q2
+                c = np.sum(v1 * (p - q1)) / np.sum(v1 * v1)
+                d = np.sum(v2 * (p - q1)) / np.sum(v2 * v2)
+                e = np.sum(v3 * (p - q2)) / np.sum(v3 * v3)
+                if c < 0: c = 0
+                if c > 1: c = 1
+                if d < 0: d = 0
+                if d > 1: d = 1
+                if e < 0: e = 0
+                if e > 1: e = 1
+                d1 = np.sqrt(np.sum((q1 + c * v1 - p) ** 2))
+                d2 = np.sqrt(np.sum((q1 + d * v2 - p) ** 2))
+                d3 = np.sqrt(np.sum((q2 + e * v3 - p) ** 2))
+                pt_dist = np.min([d1, d2, d3])
+
+            if pt_dist < temp:
+                temp = pt_dist
+        dist_vector_reference_base.append(temp)
+
+    return dist_vector_base_reference, dist_vector_reference_base
+
+
+
+
+
 for folder_name in tqdm(folders):
     # load a ground truth msk
-    gt_msk = '/home-local/adi/scripts/EECE_395/' + \
+    gt_msk = '/Users/adithyapamulaparthy/Desktop/Courses_Spring2023/MedicalImageSegmentation/EECE_395/' + \
                 folder_name + '/structures/Mandible.nrrd'
     img_gt_msk, imgh = nrrd.read(gt_msk)
     voxsz_gt_msk = [imgh['space directions'][0][0], imgh['space directions'][1][1], imgh['space directions'][2][2]]
@@ -84,7 +129,7 @@ for folder_name in tqdm(folders):
     imgzp_gt_msk = imgzp
 
     # load a target 1 msk
-    t1_msk = '/home-local/adi/scripts/EECE_395/' + \
+    t1_msk = '/Users/adithyapamulaparthy/Desktop/Courses_Spring2023/MedicalImageSegmentation/EECE_395/' + \
              folder_name + '/structures/target1.nrrd'
     img_t1_msk, imgh = nrrd.read(t1_msk)
     voxsz_t1_msk = [imgh['space directions'][0][0], imgh['space directions'][1][1], imgh['space directions'][2][2]]
@@ -93,7 +138,7 @@ for folder_name in tqdm(folders):
     imgzp_t1_msk = imgzp
 
     # load a target 2 msk
-    t2_msk = '/home-local/adi/scripts/EECE_395/' + \
+    t2_msk =  '/Users/adithyapamulaparthy/Desktop/Courses_Spring2023/MedicalImageSegmentation/EECE_395/' + \
              folder_name + '/structures/target2.nrrd'
     img_t2_msk, imgh = nrrd.read(t2_msk)
     voxsz_t2_msk = [imgh['space directions'][0][0], imgh['space directions'][1][1], imgh['space directions'][2][2]]
@@ -102,7 +147,7 @@ for folder_name in tqdm(folders):
     imgzp_t2_msk = imgzp
 
     # load a target 3 msk
-    t3_msk = '/home-local/adi/scripts/EECE_395/' + \
+    t3_msk =  '/Users/adithyapamulaparthy/Desktop/Courses_Spring2023/MedicalImageSegmentation/EECE_395/' + \
              folder_name + '/structures/target3.nrrd'
     img_t3_msk, imgh = nrrd.read(t3_msk)
     voxsz_t3_msk = [imgh['space directions'][0][0], imgh['space directions'][1][1], imgh['space directions'][2][2]]
@@ -119,7 +164,7 @@ for folder_name in tqdm(folders):
     s.opacity = 0.5
     s.createSurfaceFromVolume(imgzp_gt_msk, voxsz_gt_msk, 0.5)
     surfs_gt = s.connectedComponents()
-    gt_vol = s.volume(np.size(surfs_gt), surfs_gt)
+    gt_vol = np.array(s.volume(np.size(surfs_gt), surfs_gt))
     s.display(True)
 
     s = surface()
@@ -127,7 +172,7 @@ for folder_name in tqdm(folders):
     s.opacity = 0.5
     s.createSurfaceFromVolume(imgzp_t1_msk, voxsz_t1_msk, 0.5)
     surfs_t1 = s.connectedComponents()
-    t1_vol = s.volume(np.size(surfs_t1), surfs_t1)
+    t1_vol = np.array(s.volume(np.size(surfs_t1), surfs_t1))
     s.display(True)
 
     s = surface()
@@ -135,7 +180,7 @@ for folder_name in tqdm(folders):
     s.opacity = 0.9
     s.createSurfaceFromVolume(imgzp_t2_msk, voxsz_t2_msk, 0.5)
     surfs_t2 = s.connectedComponents()
-    t2_vol = s.volume(np.size(surfs_t2), surfs_t2)
+    t2_vol = np.array(s.volume(np.size(surfs_t2), surfs_t2))
     s.display(True)
 
     s = surface()
@@ -143,11 +188,9 @@ for folder_name in tqdm(folders):
     s.opacity = 0.1
     s.createSurfaceFromVolume(imgzp_t3_msk, voxsz_t3_msk, 0.5)
     surfs_t3 = s.connectedComponents()
-    t3_vol = s.volume(np.size(surfs_t3), surfs_t3)
+    t3_vol = np.array(s.volume(np.size(surfs_t3), surfs_t3))
     s.display(True)
 
-    # mlab.show()
-    # # end of displaying the masks
     binary_image_gt = np.zeros_like(img_gt_msk)
     binary_image_gt[img_gt_msk > 0.5] = 1
 
@@ -171,30 +214,8 @@ for folder_name in tqdm(folders):
     print("Dice Similarity gt and t2 =", dice_sim_gt_t2)
     print("Dice Similarity gt and t3 =", dice_sim_gt_t3)
 
-    # mean symmetric absolute surface distance
-    # gt and t1
-    # mean from gt to t1
-    msd_gt_t1 = msd(surfs_gt[0].verts, surfs_t1[0].verts)
-    msd_gt_t2 = msd(surfs_gt[0].verts, surfs_t2[0].verts)
-    msd_gt_t3 = msd(surfs_gt[0].verts, surfs_t3[0].verts)
-
-    print("Mean symmetric absolute surface dist gt and t1 =", msd_gt_t1)
-    print("Mean symmetric absolute surface dist gt and t2 =", msd_gt_t2)
-    print("Mean symmetric absolute surface dist gt and t3 =", msd_gt_t3)
-
-    hausdorff_gt_t1 = hausdorff_distance(surfs_gt[0].verts, surfs_t1[0].verts)
-    hausdorff_gt_t2 = hausdorff_distance(surfs_gt[0].verts, surfs_t2[0].verts)
-    hausdorff_gt_t3 = hausdorff_distance(surfs_gt[0].verts, surfs_t3[0].verts)
-
-    print("Hausdorff dist gt and t1 =", hausdorff_gt_t1)
-    print("Hausdorff dist gt and t2 =", hausdorff_gt_t2)
-    print("Hausdorff dist gt and t3 =", hausdorff_gt_t3)
-
-
-    maj_vot_seg = np.array([binary_image_t1, binary_image_t2, binary_image_t3])
-    result = majority_vote_segmentation(maj_vot_seg)
-
-    print("Majority vote segmentation:\n", result)
+    masd_gt_t1, masd_t1_gt = surface_distance(surfs_gt, surfs_t1)
+    print(f'MSASD gt vs t1: {(masd_gt_t1 + masd_t1_gt) / 2}')
 
 while (1):
     continue
